@@ -6,11 +6,23 @@ use log::{Level, Log, Metadata, Record};
 use wasm_bindgen::prelude::*;
 use web_sys::console;
 
+/// Specify timestamp format
+pub enum TimestampFormat {
+    /// https://www.rfc-editor.org/rfc/rfc2822
+    Rfc2822,
+
+    /// https://www.rfc-editor.org/rfc/rfc3339
+    Rfc3339,
+
+    /// Custom format string for chrono::DateTime
+    Custom(String),
+}
+
 /// Specify what to be logged
 pub struct Config {
     level: Level,
     module_prefix: Option<String>,
-    timestamp_format: Option<String>,
+    timestamp_format: Option<TimestampFormat>,
     message_location: MessageLocation,
 }
 
@@ -46,8 +58,8 @@ impl Config {
 
     /// Configure timestamp format.
     /// If not configured, timestamp will not be used.
-    pub fn timestamp_format(mut self, fmt: String) -> Self {
-        self.timestamp_format = Some(fmt);
+    pub fn timestamp_format(mut self, ts_fmt: TimestampFormat) -> Self {
+        self.timestamp_format = Some(ts_fmt);
         self
     }
 
@@ -117,13 +129,18 @@ impl Log for WasmLogger {
                 MessageLocation::SameLine => " ",
             };
             let timestamp = match &self.config.timestamp_format {
-                Some(fmt) => {
+                Some(ts_fmt) => {
                     use chrono::{DateTime, NaiveDateTime, Utc};
 
                     match NaiveDateTime::from_timestamp_millis(js_sys::Date::now() as i64) {
                         Some(ndt) => {
                             let dt = DateTime::<Utc>::from_utc(ndt, Utc);
-                            format!("{}", dt.format(fmt))
+
+                            match ts_fmt {
+                                TimestampFormat::Rfc2822 => dt.to_rfc2822(),
+                                TimestampFormat::Rfc3339 => dt.to_rfc3339(),
+                                TimestampFormat::Custom(fmt) => format!("{}", dt.format(fmt)),
+                            }
                         }
                         None => "".to_owned(),
                     }
