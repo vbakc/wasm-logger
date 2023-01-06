@@ -10,6 +10,7 @@ use web_sys::console;
 pub struct Config {
     level: Level,
     module_prefix: Option<String>,
+    timestamp_format: Option<String>,
     message_location: MessageLocation,
 }
 
@@ -27,6 +28,7 @@ impl Default for Config {
             level: Level::Debug,
             module_prefix: None,
             message_location: MessageLocation::SameLine,
+            timestamp_format: None,
         }
     }
 }
@@ -38,7 +40,15 @@ impl Config {
             level,
             module_prefix: None,
             message_location: MessageLocation::SameLine,
+            timestamp_format: None,
         }
+    }
+
+    /// Configure timestamp format.
+    /// If not configured, timestamp will not be used.
+    pub fn timestamp_format(mut self, fmt: String) -> Self {
+        self.timestamp_format = Some(fmt);
+        self
     }
 
     /// Configure the `target` of the logger. If specified, the logger
@@ -106,9 +116,24 @@ impl Log for WasmLogger {
                 MessageLocation::NewLine => "\n",
                 MessageLocation::SameLine => " ",
             };
+            let timestamp = match &self.config.timestamp_format {
+                Some(fmt) => {
+                    use chrono::{DateTime, NaiveDateTime, Utc};
+
+                    match NaiveDateTime::from_timestamp_millis(js_sys::Date::now() as i64) {
+                        Some(ndt) => {
+                            let dt = DateTime::<Utc>::from_utc(ndt, Utc);
+                            format!("{}", dt.format(fmt))
+                        }
+                        None => "".to_owned(),
+                    }
+                }
+                None => "".to_owned(),
+            };
             let s = format!(
-                "%c{}%c {}:{}%c{}{}",
+                "%c{}%c {}{}:{}%c{}{}",
                 record.level(),
+                timestamp,
                 record.file().unwrap_or_else(|| record.target()),
                 record
                     .line()
