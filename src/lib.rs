@@ -128,25 +128,21 @@ impl Log for WasmLogger {
                 MessageLocation::NewLine => "\n",
                 MessageLocation::SameLine => " ",
             };
-            let timestamp = match &self.config.timestamp_format {
-                Some(ts_fmt) => {
-                    use chrono::{DateTime, NaiveDateTime, Utc};
-
-                    match NaiveDateTime::from_timestamp_millis(js_sys::Date::now() as i64) {
-                        Some(ndt) => {
-                            let dt = DateTime::<Utc>::from_utc(ndt, Utc);
-
-                            match ts_fmt {
-                                TimestampFormat::Rfc2822 => dt.to_rfc2822(),
-                                TimestampFormat::Rfc3339 => dt.to_rfc3339(),
-                                TimestampFormat::Custom(fmt) => format!("{}", dt.format(fmt)),
-                            }
-                        }
-                        None => "".to_owned(),
-                    }
-                }
-                None => "".to_owned(),
-            };
+            let timestamp = self
+                .config
+                .timestamp_format
+                .as_ref()
+                .map(|ts_fmt| {
+                    chrono::NaiveDateTime::from_timestamp_millis(js_sys::Date::now() as i64)
+                        .map(|ndt| chrono::DateTime::<chrono::Utc>::from_utc(ndt, chrono::Utc))
+                        .map(|dt| match ts_fmt {
+                            TimestampFormat::Rfc2822 => dt.to_rfc2822(),
+                            TimestampFormat::Rfc3339 => dt.to_rfc3339(),
+                            TimestampFormat::Custom(fmt) => dt.format(&fmt).to_string(),
+                        })
+                })
+                .flatten()
+                .map_or("".to_string(), |s| format!("{s} "));
             let s = format!(
                 "%c{}%c {}{}:{}%c{}{}",
                 record.level(),
